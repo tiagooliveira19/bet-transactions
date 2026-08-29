@@ -1,0 +1,43 @@
+{
+  "realm": "bet-transactions",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationEmailAsUsername": false,
+  "verifyEmail": false,
+  "resetPasswordAllowed": false,
+  "clients": [
+    {
+      "clientId": "bet-transactions-api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "bet-transactions-api-secret",
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": true,
+      "bearerOnly": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "optionalClientScopes": ["address", "phone", "offline_access"]
+    }
+  ],
+  "users": [
+    {
+      "username": "provider-a",
+      "enabled": true,
+      "email": "provider-a@example.com",
+      "emailVerified": true,
+      "firstName": "Provider",
+      "lastName": "A",
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "provider-a-secret",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

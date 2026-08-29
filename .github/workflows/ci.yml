@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.15"
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      - run: bun run lint
+      - run: bun run test:unit
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: lint-and-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.15"
+      - name: Start infrastructure
+        run: docker compose up -d postgres ministack keycloak
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker compose exec -T postgres pg_isready -U bet -d bet_transactions && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Wait for MiniStack
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4566/_ministack/health && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Install and migrate
+        working-directory: backend
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: bet_transactions
+          DATABASE_USER: bet
+          DATABASE_PASSWORD: bet
+          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AUTH_ENABLED: "false"
+          KEYCLOAK_URL: http://localhost:8080
+          KEYCLOAK_REALM: bet-transactions
+          KEYCLOAK_AUDIENCE: bet-transactions-api
+        run: |
+          bun install --frozen-lockfile
+          bun run migration:up
+          bun run test:integration
+          bun run test:concurrency
+          bun run test:e2e
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose logs
