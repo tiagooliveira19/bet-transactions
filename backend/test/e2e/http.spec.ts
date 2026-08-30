@@ -102,6 +102,12 @@ describe("HTTP e2e", () => {
 });
 
 describe("HTTP e2e with Keycloak", () => {
+  const keycloakUrl = process.env.KEYCLOAK_URL ?? "http://localhost:8080";
+
+  beforeAll(async () => {
+    await waitForKeycloak(keycloakUrl);
+  }, 180_000);
+
   it("rejects business routes without a bearer token when auth is enabled", async () => {
     process.env.AUTH_ENABLED = "true";
     const authed = await createTestApp();
@@ -122,18 +128,8 @@ describe("HTTP e2e with Keycloak", () => {
   });
 
   it("accepts a client-credentials token from Keycloak", async () => {
-    const tokenResponse = await fetch(
-      `${process.env.KEYCLOAK_URL ?? "http://localhost:8080"}/realms/bet-transactions/protocol/openid-connect/token`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: "bet-transactions-api",
-          client_secret: "bet-transactions-api-secret",
-        }),
-      },
-    );
+    const tokenUrl = `${keycloakUrl}/realms/bet-transactions/protocol/openid-connect/token`;
+    const tokenResponse = await fetchToken(tokenUrl);
     expect(tokenResponse.ok).toBe(true);
     const token = (await tokenResponse.json()) as { access_token: string };
     process.env.AUTH_ENABLED = "true";
@@ -153,3 +149,46 @@ describe("HTTP e2e with Keycloak", () => {
     }
   });
 });
+
+async function waitForKeycloak(baseUrl: string): Promise<void> {
+  const discovery = `${baseUrl}/realms/bet-transactions/.well-known/openid-configuration`;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const response = await fetch(discovery);
+      if (response.ok) {
+        return;
+      }
+      lastError = new Error(`Keycloak discovery returned ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await Bun.sleep(3000);
+  }
+  throw lastError;
+}
+
+async function fetchToken(tokenUrl: string): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: "bet-transactions-api",
+          client_secret: "bet-transactions-api-secret",
+        }),
+      });
+      if (response.ok) {
+        return response;
+      }
+      lastError = new Error(`Keycloak token endpoint returned ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await Bun.sleep(1500);
+  }
+  throw lastError;
+}

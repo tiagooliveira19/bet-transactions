@@ -45,6 +45,14 @@ jobs:
             sleep 2
           done
           exit 1
+      - name: Wait for Keycloak realm
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/realms/bet-transactions/.well-known/openid-configuration && exit 0
+            sleep 3
+          done
+          docker compose logs keycloak
+          exit 1
       - name: Install and migrate
         working-directory: backend
         env:
