@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.15"
+          bun-version: "1.4.0"
       - run: bun install --frozen-lockfile
       - run: bun run format:check
       - run: bun run lint
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.15"
+          bun-version: "1.4.0"
       - name: Start infrastructure
         run: docker compose up -d postgres ministack keycloak
       - name: Wait for Postgres
