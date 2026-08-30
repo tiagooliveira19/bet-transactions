@@ -6,11 +6,11 @@ export async function startOpenTelemetry(): Promise<void> {
   const { NodeSDK } = await import("@opentelemetry/sdk-node");
   const { getNodeAutoInstrumentations } = await import("@opentelemetry/auto-instrumentations-node");
   const { OTLPTraceExporter } = await import("@opentelemetry/exporter-trace-otlp-http");
-  const { resourceFromAttributes } = await import("@opentelemetry/resources");
+  const { Resource } = await import("@opentelemetry/resources");
   const { ATTR_SERVICE_NAME } = await import("@opentelemetry/semantic-conventions");
 
   const sdk = new NodeSDK({
-    resource: resourceFromAttributes({
+    resource: new Resource({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? "bet-transactions",
     }),
     traceExporter: new OTLPTraceExporter({

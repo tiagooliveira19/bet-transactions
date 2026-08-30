@@ -15,7 +15,7 @@ Distributed financial service for wagering operations. The system stays correct 
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres ministack keycloak
+docker compose up -d postgres ministack keycloak stackport jaeger
 cd backend
 bun install
 bun run migration:up
@@ -25,7 +25,9 @@ bun run start:dev
 - API: http://localhost:3000
 - Swagger: http://localhost:3000/docs
 - Health: http://localhost:3000/health/live and `/health/ready`
-- Keycloak: http://localhost:8080
+- Keycloak: http://localhost:8080 (`admin` / `admin`)
+- StackPort (SQS): http://localhost:8081
+- Jaeger (traces): http://localhost:16686
 
 ## Commands
 

@@ -4,7 +4,7 @@
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres ministack keycloak
+docker compose up -d postgres ministack keycloak stackport jaeger
 cd backend
 bun install
 bun run migration:up
@@ -12,6 +12,8 @@ bun run start:dev
 ```
 
 Keycloak: http://localhost:8080 (`admin` / `admin`), realm `bet-transactions`, client `bet-transactions-api`.
+
+StackPort: http://localhost:8081 (SQS against MiniStack). Jaeger: http://localhost:16686 (OTLP on `localhost:4318`).
 
 OIDC client `bet-transactions-api` (client credentials and password grant). Test user: `provider-a` / `provider-a-secret`.
 
@@ -49,7 +51,7 @@ JSON logs include `correlationId`, `messageId`, `transactionId`, `walletId`, `pr
 
 ## Tracing
 
-`OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` enable the Node SDK.
+`OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` enable the Node SDK. Local traces go to Jaeger at http://localhost:16686 (service `bet-transactions`).
 
 ## Migrations
 

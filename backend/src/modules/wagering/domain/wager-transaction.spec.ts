@@ -105,6 +105,20 @@ describe("wager business rules", () => {
     expect(loss.status).toBe("PROCESSED");
   });
 
+  it("allows a WIN to reference a BET with a different payout", () => {
+    const wallet = openWallet("100.00");
+    const bet = createTxn(WagerTransactionKind.Bet, { money: money("25.00") });
+    applyWager(wallet, bet, undefined, now);
+    const win = createTxn(WagerTransactionKind.Win, {
+      money: money("40.00"),
+      referenceExternalTransactionId: bet.externalTransactionId,
+    });
+    expect(validateReference(win, bet)).toBeUndefined();
+    const winEntry = applyWager(wallet, win, bet, now);
+    expect(winEntry?.direction).toBe("CREDIT");
+    expect(wallet.balance.toString()).toBe("115.00");
+  });
+
   it("refunds a processed BET once and with the same amount", () => {
     const wallet = openWallet("100.00");
     const bet = createTxn(WagerTransactionKind.Bet, { money: money("30.00") });

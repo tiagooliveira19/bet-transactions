@@ -31,7 +31,10 @@ export function validateReference(
   if (!transaction.isAllowedReferenceKind(reference)) {
     return FailureCode.INVALID_REFERENCE_KIND;
   }
-  if (!transaction.money.equals(reference.money)) {
+  const isReversal =
+    transaction.kind === WagerTransactionKind.Refund ||
+    transaction.kind === WagerTransactionKind.Rollback;
+  if (isReversal && !transaction.money.equals(reference.money)) {
     return FailureCode.AMOUNT_MISMATCH;
   }
   return undefined;
