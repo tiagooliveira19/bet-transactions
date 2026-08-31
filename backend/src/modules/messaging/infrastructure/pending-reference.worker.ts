@@ -34,20 +34,23 @@ export class PendingReferenceWorker implements OnModuleInit, OnModuleDestroy {
 
   async processDue(limit = 20): Promise<number> {
     const now = this.clock.now();
-    const due = await this.unitOfWork.run((ctx) => ctx.findDuePendingReferences(now, limit));
-    for (const transaction of due) {
+    const holdMs = Number(this.config.get("SQS_VISIBILITY_TIMEOUT_SECONDS") ?? 30) * 1000;
+    const claimed = await this.unitOfWork.run((ctx) =>
+      ctx.claimDuePendingReferences(now, limit, holdMs),
+    );
+    for (const transactionId of claimed) {
       try {
-        await this.submitWager.reprocessPending(transaction.id);
+        await this.submitWager.reprocessPending(transactionId);
         this.metrics.recordRetry("pending_reference");
       } catch (error) {
         this.logger.warn({
           msg: "pending_reference_retry_failed",
-          transactionId: transaction.id,
+          transactionId,
           err: String(error),
         });
       }
     }
-    return due.length;
+    return claimed.length;
   }
 
   private async poll(): Promise<void> {

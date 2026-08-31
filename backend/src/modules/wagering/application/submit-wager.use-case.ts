@@ -82,13 +82,17 @@ export class SubmitWagerUseCase {
     const started = performance.now();
     try {
       const tracked = await this.unitOfWork.run(async (ctx) => {
-        const existing = await ctx.findTransactionById(transactionId);
-        if (!existing || existing.status !== WagerTransactionStatus.PendingReference) {
+        const preview = await ctx.findTransactionById(transactionId);
+        if (!preview || preview.status !== WagerTransactionStatus.PendingReference) {
           return null;
         }
-        const wallet = await ctx.findWalletForUpdate(existing.walletId);
+        const wallet = await ctx.findWalletForUpdate(preview.walletId);
         if (!wallet) {
           throw new WalletNotFoundError();
+        }
+        const existing = await ctx.findTransactionForUpdate(transactionId);
+        if (!existing || existing.status !== WagerTransactionStatus.PendingReference) {
+          return null;
         }
         const input = inputFrom(existing);
         const result = await this.continueExisting(ctx, existing, wallet, input, false);

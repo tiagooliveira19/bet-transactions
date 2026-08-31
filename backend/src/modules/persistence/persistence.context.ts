@@ -122,16 +122,36 @@ export class PersistenceContext {
     return entity ? wagerToDomain(entity) : null;
   }
 
-  async findDuePendingReferences(now: Date, limit: number): Promise<WagerTransaction[]> {
+  async findTransactionForUpdate(id: string): Promise<WagerTransaction | null> {
+    const entity = await this.em.findOne(
+      WagerTransactionOrmEntity,
+      { id },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    return entity ? wagerToDomain(entity) : null;
+  }
+
+  async claimDuePendingReferences(now: Date, limit: number, holdMs: number): Promise<string[]> {
     const rows = await this.em.find(
       WagerTransactionOrmEntity,
       {
         status: WagerTransactionStatus.PendingReference,
         nextReferenceAttemptAt: { $lte: now },
       },
-      { limit, orderBy: { nextReferenceAttemptAt: "ASC" } },
+      {
+        limit,
+        orderBy: { nextReferenceAttemptAt: "ASC" },
+        lockMode: LockMode.PESSIMISTIC_PARTIAL_WRITE,
+      },
     );
-    return rows.map(wagerToDomain);
+    const ids: string[] = [];
+    for (const entity of rows) {
+      const transaction = wagerToDomain(entity);
+      transaction.claimReferenceAttempt(now, holdMs);
+      await this.saveTransaction(transaction);
+      ids.push(transaction.id);
+    }
+    return ids;
   }
 
   async saveTransaction(transaction: WagerTransaction): Promise<void> {

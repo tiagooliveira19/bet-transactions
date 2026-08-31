@@ -35,7 +35,7 @@ The consumer reuses `SubmitWagerUseCase`, writes the inbox, acks only after comm
 - **Outbox publisher** — disable with `OUTBOX_PUBLISHER_ENABLED=false`
 - **PENDING_REFERENCE worker** — disable with `PENDING_REF_WORKER_ENABLED=false`
 
-Multiple application replicas are supported (`docker compose --profile app up --scale app=3`). They share PostgreSQL and MiniStack; wallet locks and `SKIP LOCKED` keep them correct.
+Multiple application replicas are supported (`docker compose --profile app up --scale app=3`). They share PostgreSQL and MiniStack; wallet locks and `SKIP LOCKED` (outbox and pending-reference claims) keep them correct.
 
 ## Reconciliation
 

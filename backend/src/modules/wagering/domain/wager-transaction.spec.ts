@@ -81,6 +81,17 @@ describe("WagerTransaction", () => {
       InvalidTransactionStateError,
     );
   });
+
+  it("claims a pending-reference row without consuming a retry", () => {
+    const refund = createTxn(WagerTransactionKind.Refund, {
+      referenceExternalTransactionId: "bet-1",
+    });
+    refund.markPendingReference(now);
+    expect(refund.referenceRetryCount).toBe(1);
+    refund.claimReferenceAttempt(now, 30_000);
+    expect(refund.referenceRetryCount).toBe(1);
+    expect(refund.nextReferenceAttemptAt?.getTime()).toBe(now.getTime() + 30_000);
+  });
 });
 
 describe("wager business rules", () => {

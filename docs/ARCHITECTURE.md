@@ -37,6 +37,8 @@ Inbound: `wager-transactions.fifo` → DLQ `wager-transactions-dlq.fifo` after 5
 
 Outbound: transactional outbox → `wallet-events.fifo`. Publishers claim due rows with `FOR UPDATE SKIP LOCKED` in the same SQL transaction that marks them published. A crash after SQS send and before commit republishes the same `eventId` (safe for consumers).
 
+The pending-reference worker claims due rows with `FOR UPDATE SKIP LOCKED` and postpones `next_reference_attempt_at` so another replica cannot pick the same transaction while it is in flight. Reprocess locks the wallet first, then the transaction row, and aborts if the status is no longer `PENDING_REFERENCE`.
+
 Inbox `(consumer_name, message_id)` is written in the same SQL transaction as the financial mutation. Ack happens only after commit. Redelivery is a no-op.
 
 ## Authentication

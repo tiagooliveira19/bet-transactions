@@ -218,6 +218,13 @@ export class WagerTransaction {
     this._nextReferenceAttemptAt = new Date(now.getTime() + delayMs);
   }
 
+  claimReferenceAttempt(now: Date, holdMs: number): void {
+    if (this._status !== WagerTransactionStatus.PendingReference) {
+      throw new InvalidTransactionStateError();
+    }
+    this._nextReferenceAttemptAt = new Date(now.getTime() + holdMs);
+  }
+
   reject(code: FailureCode, observedBalance?: Money): void {
     this.assertNotTerminal();
     this._status = WagerTransactionStatus.Rejected;
