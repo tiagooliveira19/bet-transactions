@@ -53,7 +53,7 @@ Integration, concurrency and e2e tests use real PostgreSQL and MiniStack. They d
 
 ## OpenTelemetry
 
-Tracing is opt-in (`OTEL_ENABLED=true`). HTTP, SQS and database spans come from auto-instrumentation. There is no Grafana dashboard in this timebox.
+Tracing is opt-in (`OTEL_ENABLED=true`). HTTP and database spans come from auto-instrumentation plus a Nest interceptor that names routes and rebinds context so SQL can nest under the request. MiniStack and OTLP exporter traffic is ignored. There is no Grafana dashboard in this timebox.
 
 ## Limitations
 

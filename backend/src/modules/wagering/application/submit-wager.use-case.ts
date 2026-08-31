@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Clock, SystemClock } from "../../../shared/domain/clock";
 import { createUuidV7 } from "../../../shared/domain/create-id";
 import {
@@ -17,6 +17,7 @@ import { FailureCode } from "../../../shared/domain/failure-code";
 import { Money, MoneyProps } from "../../../shared/domain/money";
 import { OutboxMessage } from "../../messaging/domain/outbox-message";
 import { InboxMessage } from "../../messaging/domain/inbox-message";
+import { MetricsService } from "../../observability/metrics.service";
 import { isUniqueViolation, PersistenceContext } from "../../persistence/persistence.context";
 import { UnitOfWork } from "../../persistence/unit-of-work";
 import { Wallet } from "../../wallet/domain/wallet";
@@ -54,10 +55,61 @@ export interface SubmitWagerResult {
 @Injectable()
 export class SubmitWagerUseCase {
   private readonly clock: Clock = new SystemClock();
+  private readonly logger = new Logger(SubmitWagerUseCase.name);
 
-  constructor(private readonly unitOfWork: UnitOfWork) {}
+  constructor(
+    private readonly unitOfWork: UnitOfWork,
+    private readonly metrics: MetricsService,
+  ) {}
 
   async execute(input: SubmitWagerInput): Promise<SubmitWagerResult> {
+    const started = performance.now();
+    try {
+      const result = await this.runOrReplay(input);
+      this.recordOutcome(input, result, started);
+      return result;
+    } catch (error) {
+      this.logger.warn({
+        msg: "wager_submit_failed",
+        ...logIds(input),
+        err: String(error),
+      });
+      throw error;
+    }
+  }
+
+  async reprocessPending(transactionId: string): Promise<SubmitWagerResult | null> {
+    const started = performance.now();
+    try {
+      const tracked = await this.unitOfWork.run(async (ctx) => {
+        const existing = await ctx.findTransactionById(transactionId);
+        if (!existing || existing.status !== WagerTransactionStatus.PendingReference) {
+          return null;
+        }
+        const wallet = await ctx.findWalletForUpdate(existing.walletId);
+        if (!wallet) {
+          throw new WalletNotFoundError();
+        }
+        const input = inputFrom(existing);
+        const result = await this.continueExisting(ctx, existing, wallet, input, false);
+        return { input, result };
+      });
+      if (!tracked) {
+        return null;
+      }
+      this.recordOutcome(tracked.input, tracked.result, started);
+      return tracked.result;
+    } catch (error) {
+      this.logger.warn({
+        msg: "wager_submit_failed",
+        transactionId,
+        err: String(error),
+      });
+      throw error;
+    }
+  }
+
+  private async runOrReplay(input: SubmitWagerInput): Promise<SubmitWagerResult> {
     try {
       return await this.unitOfWork.run((ctx) => this.process(ctx, input));
     } catch (error) {
@@ -78,17 +130,17 @@ export class SubmitWagerUseCase {
     }
   }
 
-  reprocessPending(transactionId: string): Promise<SubmitWagerResult | null> {
-    return this.unitOfWork.run(async (ctx) => {
-      const existing = await ctx.findTransactionById(transactionId);
-      if (!existing || existing.status !== WagerTransactionStatus.PendingReference) {
-        return null;
-      }
-      const wallet = await ctx.findWalletForUpdate(existing.walletId);
-      if (!wallet) {
-        throw new WalletNotFoundError();
-      }
-      return this.continueExisting(ctx, existing, wallet, inputFrom(existing), false);
+  private recordOutcome(input: SubmitWagerInput, result: SubmitWagerResult, started: number): void {
+    this.metrics.observeProcessing((performance.now() - started) / 1000);
+    this.metrics.recordTransaction(result.status);
+    if (result.idempotentReplay) {
+      this.metrics.recordDuplicate();
+    }
+    this.logger.log({
+      msg: result.idempotentReplay ? "wager_idempotent_replay" : "wager_submitted",
+      ...logIds(input, result),
+      status: result.status,
+      ...(result.failureCode ? { failureCode: result.failureCode } : {}),
     });
   }
 
@@ -321,6 +373,27 @@ export class SubmitWagerUseCase {
     inbox.markProcessed(now);
     await ctx.saveInbox(inbox);
   }
+}
+
+function logIds(
+  input: Pick<SubmitWagerInput, "providerId" | "walletId" | "correlationId" | "inbox">,
+  result?: SubmitWagerResult,
+): Record<string, string> {
+  const fields: Record<string, string> = {
+    providerId: input.providerId,
+    walletId: input.walletId,
+  };
+  const correlationId = input.correlationId ?? result?.transactionId;
+  if (correlationId) {
+    fields.correlationId = correlationId;
+  }
+  if (input.inbox?.messageId) {
+    fields.messageId = input.inbox.messageId;
+  }
+  if (result?.transactionId) {
+    fields.transactionId = result.transactionId;
+  }
+  return fields;
 }
 
 function toPayload(input: SubmitWagerInput): BusinessPayload {

@@ -105,16 +105,18 @@ export class WagerSqsConsumer implements OnModuleInit, OnModuleDestroy {
 
   private async handle(message: Message): Promise<void> {
     const receiveCount = Number(message.Attributes?.ApproximateReceiveCount ?? "1");
+    const messageId = message.MessageId;
+    let body: WagerMessage | undefined;
     try {
-      const body = JSON.parse(message.Body ?? "{}") as WagerMessage;
+      body = JSON.parse(message.Body ?? "{}") as WagerMessage;
       Money.from(body.data.money);
       await this.submitWager.execute({
         ...body.data,
         inbox: {
-          messageId: body.messageId ?? message.MessageId ?? "unknown",
+          messageId: body.messageId ?? messageId ?? "unknown",
           consumerName: CONSUMER_NAME,
         },
-        correlationId: body.messageId,
+        correlationId: body.messageId ?? messageId,
       });
       await this.ack(message);
     } catch (error) {
@@ -129,7 +131,13 @@ export class WagerSqsConsumer implements OnModuleInit, OnModuleDestroy {
       const max = Number(this.config.get("SQS_MAX_RECEIVE_COUNT") ?? 5);
       if (receiveCount >= max) {
         this.metrics.recordDlq();
-        this.logger.error({ msg: "sqs_message_to_dlq", receiveCount });
+        this.logger.error({
+          msg: "sqs_message_to_dlq",
+          messageId: body?.messageId ?? messageId,
+          providerId: body?.data.providerId,
+          walletId: body?.data.walletId,
+          receiveCount,
+        });
       } else {
         this.metrics.recordRetry("sqs");
       }

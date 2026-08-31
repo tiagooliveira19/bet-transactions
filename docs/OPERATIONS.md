@@ -51,7 +51,7 @@ JSON logs include `correlationId`, `messageId`, `transactionId`, `walletId`, `pr
 
 ## Tracing
 
-`OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` enable the Node SDK. Local traces go to Jaeger at http://localhost:16686 (service `bet-transactions`).
+`OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` enable the Node SDK. Local traces go to Jaeger at http://localhost:16686 (service `bet-transactions`). Incoming spans are named `METHOD /route` (`GET /wallets/:walletId`); MiniStack SQS and OTLP exporter calls are excluded. Request/response bodies are not recorded.
 
 ## Migrations
 

@@ -216,3 +216,17 @@ export class PersistenceContext {
 export function isUniqueViolation(error: unknown): boolean {
   return error instanceof UniqueConstraintViolationException;
 }
+
+const LOCK_CONFLICT_CODES = new Set(["40P01", "55P03", "40001"]);
+
+export function isLockConflict(error: unknown): boolean {
+  let current: unknown = error;
+  for (let i = 0; i < 5 && current && typeof current === "object"; i += 1) {
+    const candidate = current as { code?: string; cause?: unknown };
+    if (typeof candidate.code === "string" && LOCK_CONFLICT_CODES.has(candidate.code)) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}

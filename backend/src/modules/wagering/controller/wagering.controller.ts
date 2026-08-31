@@ -13,7 +13,6 @@ import {
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { JwtAuthGuard } from "../../identity/jwt-auth.guard";
-import { MetricsService } from "../../observability/metrics.service";
 import { GetTransactionUseCase } from "../application/get-transaction.use-case";
 import { SubmitWagerUseCase } from "../application/submit-wager.use-case";
 import { WagerTransactionStatus } from "../domain/wager-transaction";
@@ -27,7 +26,6 @@ export class WageringController {
   constructor(
     private readonly submitWager: SubmitWagerUseCase,
     private readonly getTransaction: GetTransactionUseCase,
-    private readonly metrics: MetricsService,
   ) {}
 
   @Post("wagering/transactions")
@@ -36,22 +34,18 @@ export class WageringController {
   async submit(
     @Body() body: SubmitWagerDto,
     @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Headers("x-correlation-id") correlationId: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
     if (!idempotencyKey) {
       response.status(HttpStatus.BAD_REQUEST);
       return { error: "INVALID_PAYLOAD", message: "Idempotency-Key header is required" };
     }
-    const started = performance.now();
     const result = await this.submitWager.execute({
       ...body,
       idempotencyKey,
+      correlationId,
     });
-    this.metrics.observeProcessing((performance.now() - started) / 1000);
-    this.metrics.recordTransaction(result.status);
-    if (result.idempotentReplay) {
-      this.metrics.recordDuplicate();
-    }
     response.status(statusFor(result.status));
     return result;
   }
